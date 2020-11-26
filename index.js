@@ -1,8 +1,11 @@
 const express = require("express");
-const path = require("path");
+const bodyParser = require('body-parser')
+const jsonParser = bodyParser.json()
 
 const app = express();
 const port = process.env.PORT || "8000";
+
+app.use(express.json({limit: '50mb'}));
 
 /**
  * Routes
@@ -11,6 +14,12 @@ const port = process.env.PORT || "8000";
 app.get("/", (req, res) => {
   res.status(200).send("Hello");
 });
+
+app.post("/", jsonParser, (req, res) => {
+  const debugDump = req.body;
+  console.log(debugDump);
+  res.send(debugDump)
+})
 
 /**
  * Server Activation
