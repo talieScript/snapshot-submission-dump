@@ -1,6 +1,7 @@
 const express = require("express");
 const bodyParser = require('body-parser')
 const axios = require('axios')
+const dayjs = require('dayjs')
 const jsonParser = bodyParser.json()
 
 require('dotenv').config()
@@ -26,12 +27,64 @@ app.post("/", jsonParser, async (req, res) => {
     console.log(error)
   })
 
-  const token = authRes.data.accessToken;
+  const authToken = authRes.data.accessToken;
 
-  // parse submission to how endpoint wants them 
+  // parse submission to how endpoint wants them
+  const submissionsGlobals = debugDump.collections
+    .find(col => col.name === 'submissionglobals').docs
+
+  const formattedSubmissions = debugDump.collections
+    .find(collection => collection.name === 'submissions')
+    .docs.filter(sub => dayjs(sub.reportDate).isAfter(dayjs('1/10/2020')))
+    .map(sub => {
+
+    const { id, reportDate, status, title, vesselId, content, formId, formVersion} = sub
+    const subGlobals = submissionsGlobals.filter(global => {
+      return global.submissionId === id
+    })
+    return {
+      id,
+      reportDate,
+      status,
+      title, 
+      vessel: {
+        id: vesselId
+      },
+      content,
+      authorName: 'Bridge',
+      form: {
+        id: formId,
+        version: formVersion,
+      },
+      globalValues: subGlobals,
+    }
+  })
+
+  console.log(formattedSubmissions.length)
+
+  let failedSubmissions = []
+
+  console.log(formattedSubmissions)
+
   // send submissisons 
-  // response when done
-  res.send(debugDump.submissions.submissions)
+  const promises = formattedSubmissions.map(async (sub) => {
+    return axios.post(`${endpoint}/submissions`, sub, {
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${authToken}`,
+      },
+    }).catch(() => {
+      failedSubmissions.push(sub)
+    })
+  })
+
+  await Promise.all(promises).then(() => {
+    res.send({
+      passed: formattedSubmissions.length - failedSubmissions.length,
+      outOf: formattedSubmissions.length,
+      failedSubmissions,
+    })
+  })
 })
 
 /**
