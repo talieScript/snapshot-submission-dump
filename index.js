@@ -41,6 +41,10 @@ app.post("/", jsonParser, async (req, res) => {
     const { id, reportDate, status, title, vesselId, content, formId, formVersion} = sub
     const subGlobals = submissionsGlobals.filter(global => {
       return global.submissionId === id
+    }).map((global) => {
+      delete global.created
+      delete global.updated
+      return global
     })
     return {
       id,
@@ -64,11 +68,9 @@ app.post("/", jsonParser, async (req, res) => {
 
   let failedSubmissions = []
 
-  console.log(formattedSubmissions)
-
   // send submissisons 
   const promises = formattedSubmissions.map(async (sub) => {
-    return axios.post(`${endpoint}/submissions`, sub, {
+    const promise = await axios.post(`${endpoint}/submissions`, sub, {
       headers: {
         'Content-Type': 'application/json',
         Authorization: `Bearer ${authToken}`,
@@ -76,6 +78,7 @@ app.post("/", jsonParser, async (req, res) => {
     }).catch(() => {
       failedSubmissions.push(sub)
     })
+    return promise
   })
 
   await Promise.all(promises).then(() => {
